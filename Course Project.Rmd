@@ -1,0 +1,115 @@
+---
+title: "Barbell Lifts Prediction - Practical Machine Learning Course Project"
+date: "Sunday, November 23, 2014"
+output: html_document
+---
+
+### Preliminary Notes
+
+
+#### Chosing a model
+
+The purpose of this study is to predict whether a participant performs a barbell lift correctly, or not.
+
+```{r, echo = FALSE}
+train <- read.csv("./pml-training.csv")
+test <- read.csv("./pml-testing.csv")
+```
+
+So first we take a look at the outcome, the "classe" variable of the train dataset :
+
+```{r}
+
+summary(train$classe)
+
+```
+
+So this outcome is a categorical variable with 5 levels, from A to E. So this problem is not just a binary problem : we will have to predict 5 different results 
+based on the features of the dataset.
+
+Considering these constraints, we will build a  random forest based model, as it is  particularly efficient with categorical variables.
+
+
+#### Cross-validation and error estimation
+
+The training set will be divided into two data sets : a MainTrain dataset used to fit the model and a TestTrain dataset used to test it and estimate its accuracy before applying it to the real test set.
+
+The out of sample error will then be estimated based on the accuracy of the model applied to the TestTrain dataset (i.e. the number of errors on the TestTrain set divided by the total number of observations in the set)
+
+---
+
+### Data processing
+
+#### First cleaning
+
+For this exercise we are going straight to the point by removing all the features that includes NA values.
+
+We could have worked on it with some feature engineering, but the results are quite satisfying without them :
+
+```{r}
+train<-train[,colSums(is.na(test)) == 0] ## This subset is based on the test set as it is the set presenting the largest number of NA value among the features
+test <-test[,colSums(is.na(test)) == 0]
+
+## We also remove the user_name, timestamp and new window variable, not affecting the results of the test
+
+train <- train[,-c(1:7)]
+test <- test[,-c(1:7)]
+
+```
+
+
+#### Creation of the subsets
+
+Now we can create the subsets MainTrain (70%) and TestTrain (30%) :
+
+```{r}
+library(caret)
+
+samp <- createDataPartition(train$classe, p=0.70, list=FALSE)
+MainTrain <- train[samp, ] 
+TestTrain <- train[-samp, ]
+```
+
+---
+
+### Set up of the model & associated results
+
+We do have our MainTrain set so we can perform a random-forest on it, with "classe" as the outcome :
+
+```{r}
+library(randomForest)
+
+fit <- randomForest(classe ~ ., MainTrain)
+pred <- predict(fit, TestTrain)
+
+confusionMatrix(pred, TestTrain$classe)
+```
+
+Well, with a 99,4% accuracy, the random forest seems to be a good choice.
+
+---
+
+### Application to the test set and publication
+
+Now let's just apply this fitted model to the test set :
+
+```{r}
+testpred <- predict(fit, test)
+testpred
+```
+
+And all we have to do now is to create the 20 files to submit the answer :
+
+```{r}
+
+pml_write_files = function(x){
+  n = length(x)
+  for(i in 1:n){
+    filename = paste0("problem_id_",i,".txt")
+    write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+  }
+}
+
+pml_write_files(testpred)
+
+```
